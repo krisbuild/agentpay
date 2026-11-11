@@ -1,6 +1,6 @@
 # agentpay
 
-An AI agent (Claude) that runs a bounty program and pays hunters through the **PayPal Payouts API**.
+An AI agent (Google Gemini) that runs a bounty program and pays hunters through the **PayPal Payouts API**.
 
 > This project uses PayPal's public REST APIs. It is not made, endorsed or affiliated with PayPal.
 
@@ -26,7 +26,7 @@ npm install
 cp .env.example .env   # fill in keys
 ```
 
-- `ANTHROPIC_API_KEY`: from the Claude Console
+- `GEMINI_API_KEY`: from Google AI Studio (optionally set `GEMINI_MODEL`, default `gemini-3.8-flash`)
 - `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`: a REST app at developer.paypal.com with **Payouts** enabled (use sandbox credentials first)
 
 ## Usage
@@ -50,7 +50,7 @@ npm run cli -- status <proposalId>
 
 ## Layout
 
-- `src/agent.ts`: Claude tool-runner agent (Opus 5.5, adaptive thinking, refusal fallbacks)
+- `src/agent.ts`: Gemini function-calling agent (arguments validated with Zod before any tool runs)
 - `src/paypal.ts`: PayPal OAuth and Payouts client
 - `src/store.ts`: JSON-file store (`data/db.json`); replace it with a database for production
 - `src/cli.ts`: commands, including the human approval step
