@@ -1,4 +1,4 @@
-# paypal-bounty-agent
+# agentpay
 
 An AI agent (Claude) that runs a bounty program and pays hunters through the **PayPal Payouts API**.
 
