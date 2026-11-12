@@ -1,7 +1,7 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: agentpay
+    name: gentpay
     runtime: node
     plan: free
     buildCommand: npm ci && npm run build

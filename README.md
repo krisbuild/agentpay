@@ -1,4 +1,4 @@
-# agentpay
+# Gentpay
 
 An AI agent (Google Gemini) that runs a bounty program and pays hunters through the **PayPal Payouts API**.
 

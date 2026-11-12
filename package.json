@@ -1,5 +1,5 @@
 {
-  "name": "agentpay",
+  "name": "gentpay",
   "version": "1.0.0",
   "description": "AI agent that reviews bounty submissions and proposes PayPal payouts for human approval",
   "scripts": {

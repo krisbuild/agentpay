@@ -82,7 +82,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   const [scheme, encoded] = header.split(" ");
   const password = scheme === "Basic" && encoded ? Buffer.from(encoded, "base64").toString().split(":").slice(1).join(":") : "";
   if (!safeEqual(password, ADMIN_PASSWORD)) {
-    res.set("WWW-Authenticate", 'Basic realm="AgentPay admin", charset="UTF-8"');
+    res.set("WWW-Authenticate", 'Basic realm="Gentpay admin", charset="UTF-8"');
     return res.status(401).send(messagePage("Login required", "Enter the admin password (any username)."));
   }
   // CSRF guard: browsers send Basic credentials automatically, so state-changing
@@ -194,7 +194,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(PORT, () => {
   console.log(
-    `AgentPay listening on http://localhost:${PORT} (PayPal ${process.env.PAYPAL_ENV ?? "sandbox"}, storage: ${storageKind})`,
+    `Gentpay listening on http://localhost:${PORT} (PayPal ${process.env.PAYPAL_ENV ?? "sandbox"}, storage: ${storageKind})`,
   );
   if (!ADMIN_PASSWORD) console.warn("ADMIN_PASSWORD is not set: the admin dashboard is disabled.");
 });

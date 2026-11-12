@@ -45,8 +45,8 @@ table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:6px 8px;
 export function layout(opts: { title: string; body: string; admin?: boolean; flash?: { msg: string; error?: boolean } }) {
   const env = (process.env.PAYPAL_ENV ?? "sandbox").toLowerCase();
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(opts.title)} · AgentPay</title><style>${CSS}</style></head><body>
-<header><div class="wrap"><a class="brand" href="/">AgentPay</a>
+<title>${esc(opts.title)} · Gentpay</title><style>${CSS}</style></head><body>
+<header><div class="wrap"><a class="brand" href="/">Gentpay</a>
 <nav><a href="/">Bounties</a>${opts.admin ? `<a href="/admin">Admin</a>` : ""}</nav>
 <span class="env ${env === "live" ? "live" : ""}">PayPal ${esc(env.toUpperCase())}</span></div></header>
 <main class="wrap">${opts.flash ? `<div class="flash ${opts.flash.error ? "error" : ""}">${esc(opts.flash.msg)}</div>` : ""}${opts.body}</main>
