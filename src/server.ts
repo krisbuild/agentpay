@@ -5,7 +5,7 @@ import { z } from "zod";
 import { agentProvider, runAgent } from "./agent.js";
 import { approveProposal, declineProposal, refreshPayoutStatus } from "./payouts.js";
 import { storageKind, store } from "./store.js";
-import { adminPage, bountyPage, homePage, messagePage } from "./views.js";
+import { adminPage, bountyPage, homePage, messagePage, submissionPage } from "./views.js";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "";
 const PORT = Number(process.env.PORT ?? 3000);
@@ -65,6 +65,15 @@ app.get("/bounties/:id", async (req, res) => {
   res.send(bountyPage(b, subs.length, flashFrom(req.query)));
 });
 
+app.get("/submissions/:id", async (req, res) => {
+  const s = await store.getSubmission(req.params.id);
+  if (!s) return res.status(404).send(messagePage("Not found", "We couldn't find that submission."));
+  const [b, proposals] = await Promise.all([store.getBounty(s.bountyId), store.listProposals()]);
+  const p = proposals.filter((x) => x.submissionId === s.id).at(-1);
+  res.set("Referrer-Policy", "no-referrer");
+  res.send(submissionPage(s, b, p, flashFrom(req.query)));
+});
+
 const SubmissionForm = z.object({
   hunterName: z.string().trim().min(1).max(100),
   hunterPaypalEmail: z.string().trim().toLowerCase().pipe(z.email()).pipe(z.string().max(254)),
@@ -76,8 +85,8 @@ app.post("/bounties/:id/submit", async (req, res) => {
   const parsed = SubmissionForm.safeParse(req.body);
   if (!parsed.success) return back(res, path, "err", parsed.error.issues.map((i) => i.message).join("; "));
   try {
-    await store.createSubmission({ bountyId: req.params.id, ...parsed.data });
-    back(res, path, "ok", "Thanks! Your submission was received and will be reviewed.");
+    const sub = await store.createSubmission({ bountyId: req.params.id, ...parsed.data });
+    back(res, `/submissions/${encodeURIComponent(sub.id)}`, "ok", "Thanks! Your submission was received. Bookmark this page to track it.");
   } catch (e) {
     back(res, path, "err", errMsg(e));
   }
@@ -128,7 +137,7 @@ app.get("/admin", async (req, res) => {
     store.listSubmissions(),
     store.listProposals(),
   ]);
-  res.send(adminPage({ bounties, submissions, proposals, review }, flashFrom(req.query)));
+  res.send(adminPage({ bounties, submissions, proposals, review, ai: agentProvider }, flashFrom(req.query)));
 });
 
 const BountyForm = z.object({

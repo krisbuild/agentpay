@@ -144,7 +144,7 @@ class JsonStore implements Store {
       const bounty = db.bounties.find((b) => b.id === s.bountyId);
       if (!bounty) throw new Error(`No bounty ${s.bountyId}`);
       if (bounty.status !== "open") throw new Error(`Bounty ${s.bountyId} is closed`);
-      const sub: Submission = { ...s, id: newId("s"), status: "pending_review", createdAt: now() };
+      const sub: Submission = { ...s, id: newId("s", 20), status: "pending_review", createdAt: now() };
       db.submissions.push(sub);
       return sub;
     });
@@ -403,7 +403,7 @@ class PgStore implements Store {
       `insert into submissions (id, bounty_id, hunter_name, hunter_paypal_email, content)
        select $1, b.id, $3, $4, $5 from bounties b where b.id = $2 and b.status = 'open'
        returning *`,
-      [newId("s"), s.bountyId, s.hunterName, s.hunterPaypalEmail, s.content],
+      [newId("s", 20), s.bountyId, s.hunterName, s.hunterPaypalEmail, s.content],
     );
     if (r) return toSubmission(r);
     const b = await this.getBounty(s.bountyId);
