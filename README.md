@@ -46,7 +46,16 @@ npm run dev          # http://localhost:3000  (uses .env)
 2. Enter the secrets it asks for: `ADMIN_PASSWORD`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`.
 3. Open the service URL; the admin dashboard is at `/admin`.
 
-> **Storage:** data is a JSON file. On Render's free plan the filesystem is wiped on every deploy or restart, so bounties and payout records are lost. For real use, attach a persistent disk (paid plan) and set `BOUNTY_DB_PATH` to a path on it, or move storage to a database.
+## Storage (Supabase)
+
+Set `DATABASE_URL` to a Postgres connection string and the app stores everything there; tables are created automatically on first start. Without it, data goes to a local JSON file (`data/db.json`), which is fine for development but is wiped on every Render deploy or restart.
+
+With Supabase:
+1. Create a project at supabase.com and save the database password.
+2. Click **Connect**, choose **Session pooler**, and copy the URI (`postgresql://postgres.<ref>:[YOUR-PASSWORD]@aws-...pooler.supabase.com:5432/postgres`). Use the pooler: Render can't reach Supabase's direct (IPv6-only) address.
+3. Put your database password in place of `[YOUR-PASSWORD]` and set the result as `DATABASE_URL` on Render.
+
+The database itself enforces the money rules: one active payout per bounty, and an approval can only be claimed once, even with two clicks or two admins at the same time. Row Level Security is enabled on all tables, so Supabase's public API can't read them.
 
 ## Command line (optional)
 
@@ -71,7 +80,7 @@ npm run cli -- status <proposalId>
 
 - `src/agent.ts`: Gemini function-calling agent (arguments validated with Zod before any tool runs)
 - `src/paypal.ts`: PayPal OAuth and Payouts client
-- `src/store.ts`: JSON-file store (`data/db.json`); replace it with a database for production
+- `src/store.ts`: storage: Postgres/Supabase when `DATABASE_URL` is set, otherwise a JSON file
 - `src/server.ts`, `src/views.ts`: web app (public board + admin dashboard)
 - `src/payouts.ts`: the only code that sends money (approve / decline / status)
 - `src/cli.ts`: the same actions from the command line
@@ -80,4 +89,3 @@ npm run cli -- status <proposalId>
 
 - GitHub integration: submissions from merged PRs
 - Add PayPal webhooks (`PAYMENT.PAYOUTS-ITEM.*`) to track final payout status
-- Move storage to Postgres/SQLite

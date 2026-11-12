@@ -66,10 +66,10 @@ const tools = [
     name: "get_submission",
     description: "Get one submission together with its bounty and acceptance criteria.",
     schema: z.object({ submissionId: z.string() }),
-    run: ({ submissionId }) => {
-      const s = store.getSubmission(submissionId);
+    run: async ({ submissionId }) => {
+      const s = await store.getSubmission(submissionId);
       if (!s) throw new Error(`No submission ${submissionId}`);
-      return { submission: s, bounty: store.getBounty(s.bountyId) };
+      return { submission: s, bounty: await store.getBounty(s.bountyId) };
     },
   }),
   tool({
@@ -97,17 +97,26 @@ const declarations: FunctionDeclaration[] = tools.map((t) => ({
   parametersJsonSchema: z.toJSONSchema(t.schema),
 }));
 
-function execute(name: string | undefined, args: unknown): Record<string, unknown> {
+async function execute(name: string | undefined, args: unknown): Promise<Record<string, unknown>> {
   const t = tools.find((x) => x.name === name);
   if (!t) return { error: `Unknown tool ${name}` };
   const parsed = t.schema.safeParse(args ?? {});
   if (!parsed.success) return { error: `Invalid arguments: ${parsed.error.message}` };
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return { result: (t.run as (i: any) => unknown)(parsed.data) };
+    return { result: await (t.run as (i: any) => unknown)(parsed.data) };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+// Run tool calls one at a time so reviews and proposals are written in a predictable order.
+async function callTools(calls: { id?: string; name?: string; args?: unknown }[]) {
+  const parts = [];
+  for (const c of calls) {
+    parts.push(createPartFromFunctionResponse(c.id ?? "", c.name ?? "", await execute(c.name, c.args)));
+  }
+  return parts;
 }
 
 export async function runAgent(task: string): Promise<string> {
@@ -158,7 +167,7 @@ export async function runAgent(task: string): Promise<string> {
 
     contents.push({
       role: "user",
-      parts: calls.map((c) => createPartFromFunctionResponse(c.id ?? "", c.name ?? "", execute(c.name, c.args))),
+      parts: await callTools(calls),
     });
   }
   return `Agent hit the ${MAX_TURNS}-turn limit before finishing.`;

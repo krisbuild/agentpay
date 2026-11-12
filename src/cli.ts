@@ -29,12 +29,12 @@ async function main() {
     case "submit": {
       const [bountyId, hunterName, hunterPaypalEmail, ...content] = args;
       if (!content.length) throw new Error("Usage: submit <bountyId> <name> <paypalEmail> <content...>");
-      console.log(store.createSubmission({ bountyId, hunterName, hunterPaypalEmail, content: content.join(" ") }));
+      console.log(await store.createSubmission({ bountyId, hunterName, hunterPaypalEmail, content: content.join(" ") }));
       break;
     }
     case "proposals": {
       console.table(
-        store.listProposals("awaiting_approval").map(({ id, bountyId, receiverEmail, amount, currency }) => ({
+        (await store.listProposals("awaiting_approval")).map(({ id, bountyId, receiverEmail, amount, currency }) => ({
           id, bountyId, receiverEmail, amount, currency,
         })),
       );
@@ -43,7 +43,7 @@ async function main() {
     case "approve": {
       const [id, approver] = args;
       if (!id || !approver) throw new Error("Usage: approve <proposalId> <yourName>");
-      const { proposal: p, submission, bounty } = describeProposal(id);
+      const { proposal: p, submission, bounty } = await describeProposal(id);
       if (p.status !== "awaiting_approval") throw new Error(`Proposal ${id} is ${p.status}`);
       console.log(`\nBounty:      ${bounty?.title}`);
       console.log(`Recipient:   ${p.receiverEmail} (${submission?.hunterName})`);
@@ -58,7 +58,7 @@ async function main() {
     case "decline": {
       const [id, approver] = args;
       if (!id || !approver) throw new Error("Usage: decline <proposalId> <yourName>");
-      console.log(declineProposal(id, approver));
+      console.log(await declineProposal(id, approver));
       break;
     }
     case "status": {

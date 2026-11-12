@@ -2,22 +2,24 @@
 import { PayPalClient } from "./paypal.js";
 import { store, type PayoutProposal } from "./store.js";
 
-export function describeProposal(id: string) {
-  const p = store.getProposal(id);
+export async function describeProposal(id: string) {
+  const p = await store.getProposal(id);
   if (!p) throw new Error(`No proposal ${id}`);
-  const submission = store.getSubmission(p.submissionId);
-  const bounty = store.getBounty(p.bountyId);
+  const [submission, bounty] = await Promise.all([store.getSubmission(p.submissionId), store.getBounty(p.bountyId)]);
   return { proposal: p, submission, bounty };
 }
 
-/** Sends the PayPal payout for an approved proposal. The proposal id is the idempotency key. */
+/** Sends the PayPal payout for an approved proposal. The proposal id is PayPal's idempotency key. */
 export async function approveProposal(id: string, approver: string): Promise<PayoutProposal> {
-  const { proposal: p, bounty } = describeProposal(id);
-  if (p.status !== "awaiting_approval") throw new Error(`Proposal ${id} is ${p.status}`);
   if (!approver.trim()) throw new Error("Approver name is required");
-
-  // Mark as in-flight first so a double click can't start a second payout.
-  store.updateProposal(id, { status: "processing", decidedBy: approver, decidedAt: new Date().toISOString() });
+  // Atomic claim: only one request can move a proposal from awaiting_approval to processing,
+  // so double clicks or two admins approving at once can't send two payouts.
+  const p = await store.claimProposal(id, approver.trim());
+  if (!p) {
+    const current = await store.getProposal(id);
+    throw new Error(current ? `Proposal ${id} is ${current.status}` : `No proposal ${id}`);
+  }
+  const bounty = await store.getBounty(p.bountyId);
   try {
     const r = await new PayPalClient().createPayout({
       senderBatchId: p.id,
@@ -26,23 +28,25 @@ export async function approveProposal(id: string, approver: string): Promise<Pay
       currency: p.currency,
       note: `Bounty payout: ${bounty?.title ?? p.bountyId}`,
     });
-    return store.updateProposal(id, { status: "paid", paypalBatchId: r.payoutBatchId });
+    return await store.updateProposal(id, { status: "paid", paypalBatchId: r.payoutBatchId });
   } catch (e) {
-    store.updateProposal(id, { status: "failed", error: e instanceof Error ? e.message : String(e) });
+    await store.updateProposal(id, { status: "failed", error: e instanceof Error ? e.message : String(e) });
     throw e;
   }
 }
 
-export function declineProposal(id: string, approver: string): PayoutProposal {
-  const { proposal: p } = describeProposal(id);
+export async function declineProposal(id: string, approver: string): Promise<PayoutProposal> {
+  const p = await store.getProposal(id);
+  if (!p) throw new Error(`No proposal ${id}`);
   if (p.status !== "awaiting_approval") throw new Error(`Proposal ${id} is ${p.status}`);
   return store.updateProposal(id, { status: "declined", decidedBy: approver, decidedAt: new Date().toISOString() });
 }
 
 export async function refreshPayoutStatus(id: string): Promise<string> {
-  const { proposal: p } = describeProposal(id);
+  const p = await store.getProposal(id);
+  if (!p) throw new Error(`No proposal ${id}`);
   if (!p.paypalBatchId) throw new Error("Proposal has no PayPal payout yet");
   const status = await new PayPalClient().getPayoutStatus(p.paypalBatchId);
-  store.updateProposal(id, { paypalStatus: status });
+  await store.updateProposal(id, { paypalStatus: status });
   return status;
 }

@@ -25,3 +25,6 @@ services:
         sync: false
       - key: PAYPAL_CLIENT_SECRET
         sync: false
+      # Supabase Postgres connection string (Session pooler). Without it, data is a file that Render wipes.
+      - key: DATABASE_URL
+        sync: false
