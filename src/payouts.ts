@@ -26,7 +26,7 @@ export async function approveProposal(id: string, approver: string): Promise<Pay
       receiverEmail: p.receiverEmail,
       amount: p.amount,
       currency: p.currency,
-      note: `Bounty payout: ${bounty?.title ?? p.bountyId}`,
+      note: `${bounty?.kind === "role" ? "Role trial" : "Bounty"} payout: ${bounty?.title ?? p.bountyId}`,
     });
     return await store.updateProposal(id, { status: "paid", paypalBatchId: r.payoutBatchId });
   } catch (e) {
