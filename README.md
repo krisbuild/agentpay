@@ -26,8 +26,10 @@ npm install
 cp .env.example .env   # fill in keys
 ```
 
-- `GEMINI_API_KEY`: a Google AI Studio key (`AIza...`) or a Vertex AI express-mode key. Set `GEMINI_USE_VERTEXAI=true` to use Vertex AI instead. Optionally set `GEMINI_MODEL` (default `gemini-3.8-flash`).
+- `GEMINI_API_KEY`: a Google AI Studio key (`AIza...`) or a Vertex AI express-mode key. Set `GEMINI_USE_VERTEXAI=true` to use Vertex AI instead. Optionally set `GEMINI_MODEL` (default `gemini-3.8-flash`) and `GEMINI_FALLBACK_MODELS` (default `gemini-3.5-flash`), which the agent switches to when the main model is overloaded.
 - `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`: a REST app at developer.paypal.com with **Payouts** enabled (use sandbox credentials first)
+
+> Behind an HTTPS proxy (e.g. a Claude Code cloud session), run with `NODE_USE_ENV_PROXY=1` so Node's `fetch` uses the proxy.
 
 ## Usage
 

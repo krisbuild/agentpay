@@ -1,11 +1,18 @@
 // The bounty agent: Gemini reviews submissions against acceptance criteria and
 // proposes payouts. It has NO tool that moves money — payouts only happen when a
 // human runs `npm run approve` (see cli.ts).
-import { GoogleGenAI, createPartFromFunctionResponse, type Content, type FunctionDeclaration } from "@google/genai";
+import { ApiError, GoogleGenAI, createPartFromFunctionResponse, type Content, type FunctionDeclaration } from "@google/genai";
 import { z } from "zod";
 import { store } from "./store.js";
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+// Primary model, then fallbacks tried in order when a model keeps failing with 429/5xx.
+const MODELS = [
+  process.env.GEMINI_MODEL ?? "gemini-3.8-flash",
+  ...(process.env.GEMINI_FALLBACK_MODELS ?? "gemini-3.5-flash")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean),
+];
 const MAX_TURNS = 40;
 
 const SYSTEM = `You are a bounty program operator. You help maintainers run bounties that are paid via PayPal.
@@ -109,15 +116,35 @@ export async function runAgent(task: string): Promise<string> {
   // In a Claude Code cloud session the network proxy can inject the key, so a placeholder works.
   const apiKey = process.env.GEMINI_API_KEY ?? "proxy-injected";
   const vertexai = process.env.GEMINI_USE_VERTEXAI === "true";
-  const ai = new GoogleGenAI({ apiKey, vertexai });
+  const ai = new GoogleGenAI({
+    apiKey,
+    vertexai,
+    // Retry 429/5xx (e.g. 503 "model is experiencing high demand") with backoff.
+    httpOptions: { retryOptions: { attempts: 4, initialDelay: 2, maxDelay: 20 } },
+  });
   const contents: Content[] = [{ role: "user", parts: [{ text: task }] }];
+  let modelIndex = 0; // sticky: once we fall back, stay on that model for the rest of the run
+
+  const generate = async () => {
+    for (;;) {
+      try {
+        return await ai.models.generateContent({
+          model: MODELS[modelIndex],
+          contents,
+          config: { systemInstruction: SYSTEM, tools: [{ functionDeclarations: declarations }] },
+        });
+      } catch (e) {
+        const status = e instanceof ApiError ? e.status : undefined;
+        const overloaded = status === 429 || (status !== undefined && status >= 500);
+        if (!overloaded || modelIndex >= MODELS.length - 1) throw e;
+        modelIndex++;
+        console.error(`[agent] ${MODELS[modelIndex - 1]} unavailable (${status}); falling back to ${MODELS[modelIndex]}`);
+      }
+    }
+  };
 
   for (let turn = 0; turn < MAX_TURNS; turn++) {
-    const res = await ai.models.generateContent({
-      model: MODEL,
-      contents,
-      config: { systemInstruction: SYSTEM, tools: [{ functionDeclarations: declarations }] },
-    });
+    const res = await generate();
 
     const calls = res.functionCalls ?? [];
     if (calls.length === 0) {
