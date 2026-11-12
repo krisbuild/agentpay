@@ -12,7 +12,7 @@
     "approve": "tsx --env-file-if-exists=.env src/cli.ts approve"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@google/genai": "^3.1.0",
     "express": "^5.3.0",
