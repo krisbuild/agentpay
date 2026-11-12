@@ -6,7 +6,7 @@ import { dirname } from "node:path";
 
 export type BountyStatus = "open" | "closed";
 export type SubmissionStatus = "pending_review" | "accepted" | "rejected";
-export type ProposalStatus = "awaiting_approval" | "paid" | "declined" | "failed";
+export type ProposalStatus = "awaiting_approval" | "processing" | "paid" | "declined" | "failed";
 
 export interface Bounty {
   id: string;
@@ -40,6 +40,7 @@ export interface PayoutProposal {
   justification: string;
   status: ProposalStatus;
   paypalBatchId?: string;
+  paypalStatus?: string;
   error?: string;
   decidedBy?: string;
   createdAt: string;
@@ -77,6 +78,7 @@ const now = () => new Date().toISOString();
 
 export const store = {
   listBounties: (status?: BountyStatus) => load().bounties.filter((b) => !status || b.status === status),
+  listAllSubmissions: () => load().submissions,
   getBounty: (id: string) => load().bounties.find((b) => b.id === id),
 
   createBounty: (b: Omit<Bounty, "id" | "status" | "createdAt">) =>
@@ -131,7 +133,7 @@ export const store = {
       if (s.status !== "accepted") throw new Error(`Submission ${submissionId} is not accepted`);
       const b = db.bounties.find((x) => x.id === s.bountyId)!;
       const dup = db.proposals.find(
-        (p) => p.bountyId === b.id && (p.status === "awaiting_approval" || p.status === "paid"),
+        (p) => p.bountyId === b.id && ["awaiting_approval", "processing", "paid"].includes(p.status),
       );
       if (dup) throw new Error(`Bounty ${b.id} already has proposal ${dup.id} (${dup.status})`);
       const p: PayoutProposal = {

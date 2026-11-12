@@ -31,7 +31,24 @@ cp .env.example .env   # fill in keys
 
 > Behind an HTTPS proxy (e.g. a Claude Code cloud session), run with `NODE_USE_ENV_PROXY=1` so Node's `fetch` uses the proxy.
 
-## Usage
+## Web app
+
+```bash
+npm run dev          # http://localhost:3000  (uses .env)
+```
+
+- `/`: public bounty board where hunters read bounties and submit work
+- `/admin`: password-protected (`ADMIN_PASSWORD`, any username). Create bounties, run the AI review, then **Approve & pay** or **Decline** each proposed payout. Payout history and PayPal status are shown there too.
+
+## Deploy to Render
+
+1. On render.com, choose **New → Blueprint** and connect this repo. It reads `render.yaml`.
+2. Enter the secrets it asks for: `ADMIN_PASSWORD`, `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`.
+3. Open the service URL; the admin dashboard is at `/admin`.
+
+> **Storage:** data is a JSON file. On Render's free plan the filesystem is wiped on every deploy or restart, so bounties and payout records are lost. For real use, attach a persistent disk (paid plan) and set `BOUNTY_DB_PATH` to a path on it, or move storage to a database.
+
+## Command line (optional)
 
 ```bash
 # Ask the agent to create a bounty
@@ -55,10 +72,12 @@ npm run cli -- status <proposalId>
 - `src/agent.ts`: Gemini function-calling agent (arguments validated with Zod before any tool runs)
 - `src/paypal.ts`: PayPal OAuth and Payouts client
 - `src/store.ts`: JSON-file store (`data/db.json`); replace it with a database for production
-- `src/cli.ts`: commands, including the human approval step
+- `src/server.ts`, `src/views.ts`: web app (public board + admin dashboard)
+- `src/payouts.ts`: the only code that sends money (approve / decline / status)
+- `src/cli.ts`: the same actions from the command line
 
 ## Next steps
 
-- Add an HTTP endpoint or GitHub webhook so hunters can submit directly
+- GitHub integration: submissions from merged PRs
 - Add PayPal webhooks (`PAYMENT.PAYOUTS-ITEM.*`) to track final payout status
 - Move storage to Postgres/SQLite
