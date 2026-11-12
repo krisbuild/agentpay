@@ -59,6 +59,8 @@ export type NewSubmission = Omit<Submission, "id" | "status" | "createdAt" | "re
 type ProposalPatch = Partial<Pick<PayoutProposal, "status" | "paypalBatchId" | "paypalStatus" | "error" | "decidedBy" | "decidedAt">>;
 
 export interface Store {
+  /** Connectivity check for /healthz. Never includes credentials. */
+  ping(): Promise<{ ok: true } | { ok: false; code: string; hint: string }>;
   listBounties(status?: BountyStatus): Promise<Bounty[]>;
   getBounty(id: string): Promise<Bounty | undefined>;
   createBounty(b: NewBounty): Promise<Bounty>;
@@ -90,6 +92,10 @@ interface Db {
 
 class JsonStore implements Store {
   constructor(private path: string) {}
+
+  async ping() {
+    return { ok: true as const };
+  }
 
   private load(): Db {
     if (!existsSync(this.path)) return { bounties: [], submissions: [], proposals: [] };
@@ -318,8 +324,38 @@ class PgStore implements Store {
     this.pool.on("error", (e) => console.error("[db] idle client error:", e.message));
   }
 
+  async ping() {
+    try {
+      await this.q("select 1");
+      return { ok: true as const };
+    } catch (e) {
+      const code = String((e as { code?: string }).code ?? "unknown");
+      const msg = e instanceof Error ? e.message : "";
+      const hints: [RegExp, string][] = [
+        [/^28P01$|password authentication failed/i, "Wrong database password in DATABASE_URL."],
+        [/Tenant or user not found/i, "Username/host mismatch: copy the Session pooler string again (user looks like postgres.<project-ref>)."],
+        [/^(ENOTFOUND|EAI_AGAIN)$/, "Host not found: check DATABASE_URL contains pooler.supabase.com, and that the password has no @ # / ? % characters (they break the URL)."],
+        [/^(ENETUNREACH|EHOSTUNREACH)$/, "Network unreachable: use the Session pooler string, not Direct connection (IPv6-only)."],
+        [/^ECONNREFUSED$/, "Connection refused: check the port (5432 for Session pooler)."],
+        [/^ETIMEDOUT$|timeout/i, "Connection timed out: is the Supabase project paused or the host wrong?"],
+        [/^3D000$/, "Database name not found: the URL should end with /postgres."],
+        [/Invalid URL|ERR_INVALID_URL/i, "DATABASE_URL is not a valid URL: often a password with @ # / ? % characters. Use letters and numbers only."],
+      ];
+      const hint = hints.find(([re]) => re.test(code) || re.test(msg))?.[1] ?? "See the Render logs for details.";
+      // Reset so the next request retries table creation after the problem is fixed.
+      this.ready = undefined;
+      return { ok: false as const, code, hint };
+    }
+  }
+
   private init() {
-    this.ready ??= this.pool.query(SCHEMA).then(() => undefined);
+    this.ready ??= this.pool.query(SCHEMA).then(
+      () => undefined,
+      (e) => {
+        this.ready = undefined; // retry on the next request
+        throw e;
+      },
+    );
     return this.ready;
   }
   private async q(sql: string, params: unknown[] = []): Promise<Row[]> {

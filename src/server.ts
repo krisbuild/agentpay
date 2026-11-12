@@ -32,8 +32,10 @@ const back = (res: Response, path: string, key: "ok" | "err", msg: string) =>
 
 // ---------- public ----------
 
-app.get("/healthz", (_req, res) => {
-  res.json({ ok: true, storage: storageKind });
+app.get("/healthz", async (_req, res) => {
+  const db = await store.ping();
+  // Always 200 so a database problem never blocks Render deploys; the body says what is wrong.
+  res.json({ ok: db.ok, storage: storageKind, ...(db.ok ? {} : { db }) });
 });
 
 app.get("/", async (_req, res) => {
