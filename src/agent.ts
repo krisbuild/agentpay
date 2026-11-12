@@ -1,6 +1,10 @@
-// The bounty agent: Gemini reviews submissions against acceptance criteria and
-// proposes payouts. It has NO tool that moves money — payouts only happen when a
-// human runs `npm run approve` (see cli.ts).
+// The bounty agent: an LLM (Claude by default, or Gemini) reviews submissions against
+// acceptance criteria and proposes payouts. It has NO tool that moves money: payouts only
+// happen when a human approves them (see payouts.ts).
+//
+// Provider: AGENT_PROVIDER=claude|gemini. Default: claude when ANTHROPIC_API_KEY is set, else gemini.
+import Anthropic from "@anthropic-ai/sdk";
+import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { ApiError, GoogleGenAI, createPartFromFunctionResponse, type Content, type FunctionDeclaration } from "@google/genai";
 import { z } from "zod";
 import { store } from "./store.js";
@@ -119,7 +123,7 @@ async function callTools(calls: { id?: string; name?: string; args?: unknown }[]
   return parts;
 }
 
-export async function runAgent(task: string): Promise<string> {
+async function runGeminiAgent(task: string): Promise<string> {
   // GEMINI_API_KEY is sent to the Gemini API (generativelanguage.googleapis.com) as the
   // x-goog-api-key header. Set GEMINI_USE_VERTEXAI=true to use Vertex AI instead.
   // In a Claude Code cloud session the network proxy can inject the key, so a placeholder works.
@@ -171,4 +175,57 @@ export async function runAgent(task: string): Promise<string> {
     });
   }
   return `Agent hit the ${MAX_TURNS}-turn limit before finishing.`;
+}
+
+// ---------------------------------------------------------------- Claude
+
+const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? "claude-opus-5-5";
+
+// Same tools as Gemini; errors are returned to the model as text instead of being thrown.
+const claudeTools = tools.map((t) =>
+  betaZodTool({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.schema as z.ZodObject,
+    run: async (input) => JSON.stringify(await execute(t.name, input)),
+  }),
+);
+
+async function runClaudeAgent(task: string): Promise<string> {
+  const client = new Anthropic(); // reads ANTHROPIC_API_KEY
+  const final = await client.beta.messages.toolRunner({
+    model: CLAUDE_MODEL,
+    max_tokens: 16000,
+    thinking: { type: "adaptive" },
+    output_config: { effort: "medium" },
+    // If a request is declined by a safety classifier, the API retries it on a fallback model.
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: SYSTEM,
+    tools: claudeTools,
+    max_iterations: MAX_TURNS,
+    messages: [{ role: "user", content: task }],
+  });
+  if (final.stop_reason === "refusal") {
+    return `Agent declined: ${final.stop_details?.explanation ?? "no explanation given"}`;
+  }
+  const text = final.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { text: string }).text)
+    .join("\n")
+    .trim();
+  return text || `Agent finished (stop reason: ${final.stop_reason}).`;
+}
+
+// ---------------------------------------------------------------- entry point
+
+export const agentProvider: "claude" | "gemini" =
+  process.env.AGENT_PROVIDER === "gemini" || process.env.AGENT_PROVIDER === "claude"
+    ? process.env.AGENT_PROVIDER
+    : process.env.ANTHROPIC_API_KEY
+      ? "claude"
+      : "gemini";
+
+export function runAgent(task: string): Promise<string> {
+  return agentProvider === "claude" ? runClaudeAgent(task) : runGeminiAgent(task);
 }

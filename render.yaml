@@ -12,14 +12,12 @@ services:
         value: "22"
       - key: PAYPAL_ENV
         value: sandbox
-      - key: GEMINI_MODEL
-        value: gemini-3.8-flash
-      - key: GEMINI_FALLBACK_MODELS
-        value: gemini-3.5-flash
+      - key: AGENT_PROVIDER
+        value: claude
       # Secrets: Render asks you for these when you create the Blueprint.
       - key: ADMIN_PASSWORD
         sync: false
-      - key: GEMINI_API_KEY
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false

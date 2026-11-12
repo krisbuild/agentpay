@@ -2,7 +2,7 @@
 import { timingSafeEqual } from "node:crypto";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { z } from "zod";
-import { runAgent } from "./agent.js";
+import { agentProvider, runAgent } from "./agent.js";
 import { approveProposal, declineProposal, refreshPayoutStatus } from "./payouts.js";
 import { storageKind, store } from "./store.js";
 import { adminPage, bountyPage, homePage, messagePage } from "./views.js";
@@ -35,7 +35,7 @@ const back = (res: Response, path: string, key: "ok" | "err", msg: string) =>
 app.get("/healthz", async (_req, res) => {
   const db = await store.ping();
   // Always 200 so a database problem never blocks Render deploys; the body says what is wrong.
-  res.json({ ok: db.ok, storage: storageKind, ...(db.ok ? {} : { db }) });
+  res.json({ ok: db.ok, storage: storageKind, ai: agentProvider, ...(db.ok ? {} : { db }) });
 });
 
 app.get("/", async (_req, res) => {
