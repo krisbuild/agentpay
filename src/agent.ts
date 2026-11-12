@@ -104,13 +104,11 @@ function execute(name: string | undefined, args: unknown): Record<string, unknow
 }
 
 export async function runAgent(task: string): Promise<string> {
-  // GEMINI_API_KEY holds either a Gemini Developer API key (starts with "AIza") or a
-  // Vertex AI express-mode key (starts with "AQ."). Vertex keys go to aiplatform.googleapis.com.
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Missing environment variable GEMINI_API_KEY");
-  const vertexai = process.env.GEMINI_USE_VERTEXAI
-    ? process.env.GEMINI_USE_VERTEXAI === "true"
-    : apiKey.startsWith("AQ.");
+  // GEMINI_API_KEY is sent to the Gemini API (generativelanguage.googleapis.com) as the
+  // x-goog-api-key header. Set GEMINI_USE_VERTEXAI=true to use Vertex AI instead.
+  // In a Claude Code cloud session the network proxy can inject the key, so a placeholder works.
+  const apiKey = process.env.GEMINI_API_KEY ?? "proxy-injected";
+  const vertexai = process.env.GEMINI_USE_VERTEXAI === "true";
   const ai = new GoogleGenAI({ apiKey, vertexai });
   const contents: Content[] = [{ role: "user", parts: [{ text: task }] }];
 
