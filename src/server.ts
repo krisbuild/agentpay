@@ -5,7 +5,7 @@ import { z } from "zod";
 import { runAgent } from "./agent.js";
 import { approveProposal, declineProposal, refreshPayoutStatus } from "./payouts.js";
 import { storageKind, store } from "./store.js";
-import { adminPage, bountyListPage, bountyPage, messagePage } from "./views.js";
+import { adminPage, bountyPage, homePage, messagePage } from "./views.js";
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "";
 const PORT = Number(process.env.PORT ?? 3000);
@@ -39,13 +39,30 @@ app.get("/healthz", async (_req, res) => {
 });
 
 app.get("/", async (_req, res) => {
-  res.send(bountyListPage((await store.listBounties("open")).slice().reverse()));
+  const [bounties, submissions, paid] = await Promise.all([
+    store.listBounties("open"),
+    store.listSubmissions(),
+    store.listProposals("paid"),
+  ]);
+  const submissionCounts = new Map<string, number>();
+  for (const s of submissions) submissionCounts.set(s.bountyId, (submissionCounts.get(s.bountyId) ?? 0) + 1);
+  const totals = new Map<string, number>();
+  for (const p of paid) totals.set(p.currency, (totals.get(p.currency) ?? 0) + Number(p.amount));
+  res.send(
+    homePage({
+      bounties: bounties.slice().reverse(),
+      submissionCounts,
+      paidTotals: [...totals].map(([currency, amount]) => ({ currency, amount })),
+      contributorsPaid: new Set(paid.map((p) => p.receiverEmail.toLowerCase())).size,
+    }),
+  );
 });
 
 app.get("/bounties/:id", async (req, res) => {
   const b = await store.getBounty(req.params.id);
   if (!b) return res.status(404).send(messagePage("Not found", "That bounty doesn't exist."));
-  res.send(bountyPage(b, flashFrom(req.query)));
+  const subs = await store.listSubmissions({ bountyId: b.id });
+  res.send(bountyPage(b, subs.length, flashFrom(req.query)));
 });
 
 const SubmissionForm = z.object({
